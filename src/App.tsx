@@ -21,6 +21,7 @@ declare global {
       sendCommand: (id: string, cmd: string) => Promise<any>;
       getConsole: (id: string) => Promise<any[]>;
       getServerStatus: (id: string) => Promise<{ running: boolean; pid: number | null }>;
+      getServerInfo: (id: string) => Promise<{ localIP: string; publicIP: string; port: number; running: boolean; onlinePlayers: string[]; maxPlayers: number; motd: string; version: string; modLoader: string }>;
       saveServerConfig: (id: string, config: any) => Promise<any>;
       getLogs: (id: string) => Promise<string>;
       listMods: (id: string) => Promise<any[]>;

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendCommand: (id: string, cmd: string) => ipcRenderer.invoke('servers:command', id, cmd),
   getConsole: (id: string) => ipcRenderer.invoke('servers:console:get', id),
   getServerStatus: (id: string) => ipcRenderer.invoke('servers:status', id),
+  getServerInfo: (id: string) => ipcRenderer.invoke('servers:get-info', id),
   saveServerConfig: (id: string, config: any) => ipcRenderer.invoke('servers:config:save', id, config),
   getLogs: (id: string) => ipcRenderer.invoke('servers:logs', id),
   backupServer: (id: string) => ipcRenderer.invoke('servers:backup', id),

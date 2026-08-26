@@ -378,6 +378,63 @@ function registerIPC() {
     throw new Error('Server not running');
   });
 
+  ipcMain.handle('servers:get-info', async (_, id: string) => {
+    const config = JSON.parse(fs.readFileSync(getServerConfigPath(id), 'utf-8'));
+    const running = serverProcesses.has(id);
+
+    // Get local IP
+    let localIP = '127.0.0.1';
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          localIP = iface.address;
+        }
+      }
+    }
+
+    // Get public IP (with timeout)
+    let publicIP = '';
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json() as any;
+      publicIP = data.ip || '';
+    } catch {}
+
+    // Get online players from console buffer
+    let onlinePlayers: string[] = [];
+    if (running) {
+      const buffer = consoleBuffers.get(id) || [];
+      // Look for list command output in recent lines
+      const lines = buffer.slice(-200);
+      for (const line of lines) {
+        const parsed = JSON.parse(line);
+        if (parsed.message?.includes('There are') && parsed.message?.includes('of a max')) {
+          // e.g. "There are 3 of a max of 100 players online: Steve, Alex, ..."
+          const match = parsed.message.match(/online:(.+)/);
+          if (match) {
+            onlinePlayers = match[1].split(',').map((n: string) => n.trim()).filter(Boolean);
+          }
+        }
+      }
+    }
+
+    return {
+      localIP,
+      publicIP,
+      port: config.port || 25565,
+      running,
+      onlinePlayers,
+      maxPlayers: config.maxPlayers || 20,
+      motd: config.motd || 'A Minecraft Server',
+      version: config.version,
+      modLoader: config.modLoader,
+    };
+  });
+
   ipcMain.handle('servers:console:get', (_, id: string) => {
     return (consoleBuffers.get(id) || []).map(l => JSON.parse(l));
   });

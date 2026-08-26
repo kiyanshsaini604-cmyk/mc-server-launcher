@@ -7,7 +7,7 @@ interface ServerViewProps {
   onRefresh: () => void;
 }
 
-type ServerTab = 'console' | 'config' | 'mods' | 'players' | 'logs';
+type ServerTab = 'console' | 'join' | 'config' | 'mods' | 'players' | 'logs';
 
 interface ServerMetrics {
   players: number;
@@ -283,7 +283,7 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-white/5">
-        {(['console', 'config', 'mods', 'players', 'logs'] as ServerTab[]).map((t) => (
+        {(['console', 'join', 'config', 'mods', 'players', 'logs'] as ServerTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -314,6 +314,7 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
         )}
         {tab === 'mods' && <ModsTab serverId={serverId} />}
         {tab === 'players' && <PlayersTab serverId={serverId} running={running} />}
+        {tab === 'join' && <JoinTab serverId={serverId} running={running} config={server} />}
         {tab === 'logs' && <LogsTab serverId={serverId} />}
       </div>
     </div>
@@ -759,6 +760,157 @@ function LogsTab({ serverId }: { serverId: string }) {
           <pre className="console-font text-white/70 whitespace-pre-wrap">{logs}</pre>
         ) : (
           <div className="text-white/20">No logs found. Start the server to generate logs.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Join Tab ----
+function JoinTab({ serverId, running, config }: { serverId: string; running: boolean; config: ServerConfig | null }) {
+  const [info, setInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState('');
+
+  useEffect(() => {
+    window.electronAPI.getServerInfo(serverId).then(data => {
+      setInfo(data);
+      setLoading(false);
+    });
+    // Refresh every 5 seconds while running
+    const iv = setInterval(() => {
+      if (running) window.electronAPI.getServerInfo(serverId).then(setInfo);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [serverId, running]);
+
+  const copyAddress = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(''), 2000);
+  };
+
+  if (loading) return <div className="text-white/40 p-6">Loading connection info...</div>;
+
+  const localAddress = `${info?.localIP}:${info?.port || 25565}`;
+  const publicAddress = info?.publicIP ? `${info.publicIP}:${info?.port || 25565}` : '';
+
+  return (
+    <div className="animate-slide-up h-full overflow-y-auto p-6">
+      {/* Hero section */}
+      <div className="text-center mb-8">
+        <div className="text-5xl mb-3">🎮</div>
+        <h2 className="text-2xl font-bold text-white mb-2">Join Server</h2>
+        <p className="text-white/40">Share these details with friends to play together</p>
+      </div>
+
+      {/* Status badge */}
+      <div className="flex justify-center mb-6">
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+          running ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-red-500/20 text-red-400 border border-red-500/30'
+        }`}>
+          <div className={`w-2 h-2 rounded-full ${running ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+          {running ? 'Server Online' : 'Server Offline'}
+        </div>
+      </div>
+
+      {/* Server address cards */}
+      <div className="max-w-md mx-auto space-y-4">
+        {/* Local address */}
+        <div className="bg-white/5 rounded-xl border border-white/10 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wider">🌐 Local Network</span>
+            <span className="text-xs text-white/30">Same WiFi / LAN</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <code className="text-lg font-mono text-white font-bold">{localAddress}</code>
+            <button
+              onClick={() => copyAddress(localAddress, 'local')}
+              className="px-3 py-1.5 bg-mc-accent hover:bg-mc-accent/80 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+            >
+              {copied === 'local' ? '✅ Copied' : '📋 Copy'}
+            </button>
+          </div>
+        </div>
+
+        {/* Public address */}
+        {publicAddress && (
+          <div className="bg-mc-accent/10 rounded-xl border border-mc-accent/30 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-mc-accent uppercase tracking-wider">🌍 Public Internet</span>
+              <span className="text-xs text-white/30">Friends online</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <code className="text-lg font-mono text-white font-bold">{publicAddress}</code>
+              <button
+                onClick={() => copyAddress(publicAddress, 'public')}
+                className="px-3 py-1.5 bg-mc-accent hover:bg-mc-accent/80 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+              >
+                {copied === 'public' ? '✅ Copied' : '📋 Copy'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* How to join */}
+        <div className="bg-white/5 rounded-xl border border-white/10 p-4">
+          <h3 className="text-sm font-semibold text-white mb-3">📋 How to Join</h3>
+          <ol className="space-y-2 text-sm text-white/60">
+            <li className="flex gap-2">
+              <span className="text-mc-accent font-bold">1.</span>
+              Open Minecraft {info?.version || 'Java Edition'}
+            </li>
+            <li className="flex gap-2">
+              <span className="text-mc-accent font-bold">2.</span>
+              Click <span className="text-white font-medium">Multiplayer</span> → <span className="text-white font-medium">Add Server</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-mc-accent font-bold">3.</span>
+              Paste the server address above
+            </li>
+            <li className="flex gap-2">
+              <span className="text-mc-accent font-bold">4.</span>
+              Click <span className="text-white font-medium">Join Server</span> and play!
+            </li>
+          </ol>
+        </div>
+
+        {/* Server info */}
+        <div className="bg-white/5 rounded-xl border border-white/10 p-4">
+          <h3 className="text-sm font-semibold text-white mb-3">ℹ️ Server Details</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-white/40">Version</span>
+              <p className="text-white font-medium">{info?.version || 'Unknown'}</p>
+            </div>
+            <div>
+              <span className="text-white/40">Mod Loader</span>
+              <p className="text-white font-medium capitalize">{info?.modLoader || 'Vanilla'}</p>
+            </div>
+            <div>
+              <span className="text-white/40">Players</span>
+              <p className="text-white font-medium">{info?.onlinePlayers?.length || 0} / {info?.maxPlayers || 20}</p>
+            </div>
+            <div>
+              <span className="text-white/40">Port</span>
+              <p className="text-white font-medium">{info?.port || 25565}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Online players */}
+        {info?.onlinePlayers && info.onlinePlayers.length > 0 && (
+          <div className="bg-white/5 rounded-xl border border-white/10 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3">👥 Online Players ({info.onlinePlayers.length})</h3>
+            <div className="flex flex-wrap gap-2">
+              {info.onlinePlayers.map((p: string) => (
+                <span key={p} className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium border border-green-500/30">
+                  {p}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
