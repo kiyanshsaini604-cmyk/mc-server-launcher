@@ -128,47 +128,72 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
   const possiblePaths: string[] = [];
 
   if (platform === 'win32') {
-    // 1. JAVA_HOME
+    // 1. Windows Registry (most reliable on Windows)
+    try {
+      const regKeys = [
+        'HKLM\\SOFTWARE\\JavaSoft\\JDK',
+        'HKLM\\SOFTWARE\\Eclipse Adoptium\\JDK',
+        'HKLM\\SOFTWARE\\Eclipse Temurin\\JDK',
+      ];
+      for (const key of regKeys) {
+        try {
+          const output = execSync(`reg query "${key}" /s`, { encoding: 'utf-8', timeout: 5000 });
+          const javaHomeMatch = output.match(/JavaHome\s+REG_SZ\s+(.+)/i) || output.match(/Path\s+REG_SZ\s+(.+)/i);
+          if (javaHomeMatch) {
+            const javaHome = javaHomeMatch[1].trim();
+            possiblePaths.push(path.join(javaHome, 'bin', 'java.exe'));
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // 2. JAVA_HOME
     const javaHome = process.env.JAVA_HOME;
     if (javaHome) {
       possiblePaths.push(path.join(javaHome, 'bin', 'java.exe'));
     }
-    // 2. PATH
+
+    // 3. where java (PATH)
     try {
-      const where = execSync('where java 2>nul', { encoding: 'utf-8' }).trim();
+      const where = execSync('where java', { encoding: 'utf-8', timeout: 5000 }).trim();
       if (where) {
         possiblePaths.unshift(...where.split('\n').map(l => l.trim()).filter(Boolean));
       }
     } catch {}
-    // 3. Hardcoded common Windows locations (Electron apps may not see ProgramFiles)
+
+    // 4. Hardcoded scan of common Windows locations
     const driveRoots = ['C:', 'D:', 'E:'];
     const programDirs = ['Program Files', 'Program Files (x86)'];
     const vendorDirs = ['Eclipse Adoptium', 'Eclipse Temurin', 'Azul', 'Java', 'Microsoft', 'BellSoft', 'Amazon Corretto', 'Zulu'];
     for (const drive of driveRoots) {
       for (const prog of programDirs) {
         for (const vendor of vendorDirs) {
-          const vendorPath = path.join(drive + '/', prog, vendor);
+          const vendorPath = drive + path.sep + prog + path.sep + vendor;
           try {
             if (fs.existsSync(vendorPath)) {
               const versions = fs.readdirSync(vendorPath).filter(f => f.startsWith('jdk-') || f.startsWith('jre-'));
               for (const v of versions) {
-                possiblePaths.push(path.join(vendorPath, v, 'bin', 'java.exe'));
+                const jp = vendorPath + path.sep + v + path.sep + 'bin' + path.sep + 'java.exe';
+                if (fs.existsSync(jp)) possiblePaths.push(jp);
               }
             }
           } catch {}
         }
       }
     }
-    // 4. Also try registry-based location from ProgramFiles env
-    const programFiles = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean);
-    for (const pf of programFiles) {
+
+    // 5. ProgramFiles env vars
+    const pf = process.env['ProgramFiles'] || 'C:\\Program Files';
+    const pf86 = process.env['ProgramFiles(x86)'] || '';
+    for (const base of [pf, pf86].filter(Boolean)) {
       for (const vendor of vendorDirs) {
-        const vendorPath = path.join(pf, vendor);
+        const vendorPath = base + path.sep + vendor;
         try {
           if (fs.existsSync(vendorPath)) {
             const versions = fs.readdirSync(vendorPath).filter(f => f.startsWith('jdk-') || f.startsWith('jre-'));
             for (const v of versions) {
-              possiblePaths.push(path.join(vendorPath, v, 'bin', 'java.exe'));
+              const jp = vendorPath + path.sep + v + path.sep + 'bin' + path.sep + 'java.exe';
+              if (fs.existsSync(jp)) possiblePaths.push(jp);
             }
           }
         } catch {}
@@ -189,16 +214,27 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
     } catch {}
   }
 
-  for (const javaPath of possiblePaths) {
-    if (fs.existsSync(javaPath)) {
-      try {
-        const output = execSync(`"${javaPath}" -version 2>&1`, { encoding: 'utf-8' });
-        const versionMatch = output.match(/version\s+"?(\d+[\d._]*)/);
-        const version = versionMatch ? versionMatch[1] : 'unknown';
-        const is64Bit = output.includes('64-Bit') || output.includes('aarch64');
-        return { path: javaPath, version, is64Bit };
-      } catch {}
-    }
+  // Deduplicate
+  const seen = new Set<string>();
+  const uniquePaths = possiblePaths.filter(p => {
+    const lower = p.toLowerCase();
+    if (seen.has(lower)) return false;
+    seen.add(lower);
+    return true;
+  });
+
+  for (const javaPath of uniquePaths) {
+    if (!fs.existsSync(javaPath)) continue;
+    try {
+      // Use spawnSync to avoid shell redirect issues
+      const { spawnSync } = require('child_process');
+      const result = spawnSync(javaPath, ['-version'], { encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] });
+      const output = (result.stdout || '') + (result.stderr || '');
+      const versionMatch = output.match(/version\s+"?(\d+[\d._]*)/);
+      const version = versionMatch ? versionMatch[1] : 'unknown';
+      const is64Bit = output.includes('64-Bit') || output.includes('aarch64');
+      return { path: javaPath, version, is64Bit };
+    } catch {}
   }
   return null;
 }
