@@ -51,4 +51,4 @@ export interface ServerTemplate {
   downloadUrl?: string;
 }
 
-export type AppView = 'dashboard' | 'server' | 'settings' | 'create';
+export type AppView = 'dashboard' | 'server' | 'settings' | 'create' | 'play';

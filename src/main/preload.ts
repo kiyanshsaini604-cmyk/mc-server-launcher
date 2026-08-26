@@ -50,6 +50,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSystemInfo: () => ipcRenderer.invoke('system:info'),
   fetchVersions: () => ipcRenderer.invoke('versions:fetch'),
 
+  // Minecraft Client
+  mcVersions: () => ipcRenderer.invoke('mc:versions'),
+  mcDownload: (versionId: string) => ipcRenderer.invoke('mc:download', versionId),
+  mcLaunch: (versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => ipcRenderer.invoke('mc:launch', versionId, username, javaPath, ramMin, ramMax),
+  mcStatus: () => ipcRenderer.invoke('mc:status'),
+  mcKill: () => ipcRenderer.invoke('mc:kill'),
+  mcGameDir: () => ipcRenderer.invoke('mc:game-dir'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -70,5 +78,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_: any, message: string, percent?: number) => callback(message, percent);
     ipcRenderer.on('server:download-progress', handler);
     return () => removeListener('server:download-progress', handler);
+  },
+  onMcProgress: (callback: (message: string, percent?: number) => void) => {
+    const handler = (_: any, message: string, percent?: number) => callback(message, percent);
+    ipcRenderer.on('mc:progress', handler);
+    return () => removeListener('mc:progress', handler);
+  },
+  onMcConsole: (callback: (text: string) => void) => {
+    const handler = (_: any, text: string) => callback(text);
+    ipcRenderer.on('mc:console', handler);
+    return () => removeListener('mc:console', handler);
+  },
+  onMcExit: (callback: (code: number) => void) => {
+    const handler = (_: any, code: number) => callback(code);
+    ipcRenderer.on('mc:exit', handler);
+    return () => removeListener('mc:exit', handler);
   },
 });

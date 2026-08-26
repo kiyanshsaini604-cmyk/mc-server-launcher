@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import ServerView from './components/ServerView';
 import CreateServer from './components/CreateServer';
 import Settings from './components/Settings';
+import PlayLauncher from './components/PlayLauncher';
 import type { ServerConfig, AppView } from './types';
 
 declare global {
@@ -46,6 +47,16 @@ declare global {
       deployDefaultsAll: () => Promise<any>;
       uploadDefault: (type: string) => Promise<any>;
       removeDefault: (type: string, file: string) => Promise<any>;
+      // Minecraft Client
+      mcVersions: () => Promise<any[]>;
+      mcDownload: (versionId: string) => Promise<any>;
+      mcLaunch: (versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => Promise<any>;
+      mcStatus: () => Promise<{ running: boolean }>;
+      mcKill: () => Promise<any>;
+      mcGameDir: () => Promise<string>;
+      onMcProgress: (callback: (message: string, percent?: number) => void) => (() => void);
+      onMcConsole: (callback: (text: string) => void) => (() => void);
+      onMcExit: (callback: (code: number) => void) => (() => void);
       onConsole: (callback: (id: string, line: any) => void) => (() => void);
       onStatus: (callback: (id: string, status: any) => void) => (() => void);
       onDownloadProgress: (callback: (message: string, percent?: number) => void) => (() => void);
@@ -136,6 +147,7 @@ export default function App() {
               }}
             />
           )}
+          {view === 'play' && <PlayLauncher />}
           {view === 'settings' && <Settings />}
         </main>
       </div>

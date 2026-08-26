@@ -850,6 +850,37 @@ function generateServerProperties(config: any, serverDir?: string): string {
     .join('\n') + '\n';
 }
 
+// ---- Minecraft Client Launcher ----
+import { getClientVersions, downloadClient, launchGame, isGameRunning, killGame, getGameDataDir } from './mc-launcher';
+
+ipcMain.handle('mc:versions', async () => {
+  return getClientVersions();
+});
+
+ipcMain.handle('mc:download', async (_, versionId: string) => {
+  return downloadClient(versionId, (msg, pct) => {
+    mainWindow?.webContents.send('mc:progress', msg, pct);
+  });
+});
+
+ipcMain.handle('mc:launch', async (_, versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => {
+  await launchGame(versionId, username, javaPath, ramMin, ramMax, mainWindow);
+  return { success: true };
+});
+
+ipcMain.handle('mc:status', () => {
+  return { running: isGameRunning() };
+});
+
+ipcMain.handle('mc:kill', () => {
+  killGame();
+  return { success: true };
+});
+
+ipcMain.handle('mc:game-dir', () => {
+  return getGameDataDir();
+});
+
 // ---- Window ----
 function createWindow() {
   mainWindow = new BrowserWindow({
