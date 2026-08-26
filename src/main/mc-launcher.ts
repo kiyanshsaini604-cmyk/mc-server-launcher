@@ -317,64 +317,156 @@ function buildArgs(
 }
 
 // ---- Find Java ----
-function findJavaForVersion(requiredVersion: number): string | null {
-  // Check registry
+interface JavaInstall { path: string; majorVersion: number }
+
+function parseMajorVersion(dirName: string): number {
+  // jdk-21.0.12.101-hotspot -> 21, jdk-17 -> 17, jre-8u301 -> 8
+  const m = dirName.match(/(?:jdk|jre)-?(\d+)/i);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function getAllJavaInstalls(): JavaInstall[] {
+  const installs: JavaInstall[] = [];
+  const seen = new Set<string>();
+  const add = (p: string, v: number) => {
+    const key = p.toLowerCase();
+    if (!seen.has(key) && fs.existsSync(p)) { seen.add(key); installs.push({ path: p, majorVersion: v }); }
+  };
+
+  // 1. Our own managed JREs (downloaded from Adoptium)
   try {
-    const regKeys = [
-      'HKLM\\SOFTWARE\\JavaSoft\\JDK',
-      'HKLM\\SOFTWARE\\Eclipse Adoptium\\JDK',
-    ];
+    const jresDir = path.join(MC_DATA_DIR, 'jres');
+    if (fs.existsSync(jresDir)) {
+      for (const dir of fs.readdirSync(jresDir)) {
+        const major = parseMajorVersion(dir);
+        const jp = path.join(jresDir, dir, 'jdk-', 'bin', 'java.exe');
+        // Adoptium zips extract to a single root dir; find bin/java.exe recursively-ish
+        const root = path.join(jresDir, dir);
+        let found = false;
+        try {
+          for (const sub of fs.readdirSync(root)) {
+            const jp2 = path.join(root, sub, 'bin', 'java.exe');
+            if (fs.existsSync(jp2)) { add(jp2, major); found = true; break; }
+          }
+        } catch {}
+        if (!found) {
+          const jp3 = path.join(root, 'bin', 'java.exe');
+          add(jp3, major);
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Registry
+  try {
+    const regKeys = ['HKLM\\SOFTWARE\\JavaSoft\\JDK', 'HKLM\\SOFTWARE\\Eclipse Adoptium\\JDK', 'HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment'];
     for (const key of regKeys) {
       try {
-        const output = require('child_process').execSync(`reg query "${key}" /s`, { encoding: 'utf-8', timeout: 5000 });
-        const matches = output.match(/JavaHome\s+REG_SZ\s+(.+)/gi) || output.match(/Path\s+REG_SZ\s+(.+)/gi);
-        if (matches) {
-          for (const m of matches) {
-            const dir = m.split('REG_SZ')[1]?.trim();
-            if (dir) {
-              const jp = path.join(dir, 'bin', 'java.exe');
-              if (fs.existsSync(jp)) return jp;
-            }
+        const { execSync } = require('child_process');
+        const output = execSync(`reg query "${key}" /s`, { encoding: 'utf-8', timeout: 5000 });
+        const homeMatches = output.match(/JavaHome\s+REG_SZ\s+(.+)/gi) || [];
+        for (const m of homeMatches) {
+          const dir = m.split('REG_SZ')[1]?.trim();
+          if (dir) {
+            const jp = path.join(dir, 'bin', 'java.exe');
+            const verMatch = dir.match(/(\d+)/);
+            add(jp, verMatch ? parseInt(verMatch[1], 10) : 0);
           }
         }
       } catch {}
     }
   } catch {}
 
-  // Check common paths
+  // 3. Directory scan
   const driveRoots = ['C:', 'D:'];
-  const vendorDirs = ['Eclipse Adoptium', 'Java', 'Microsoft', 'Azul', 'Eclipse Temurin'];
+  const programDirs = ['Program Files', 'Program Files (x86)'];
+  const vendorDirs = ['Eclipse Adoptium', 'Eclipse Temurin', 'Java', 'Microsoft', 'Azul', 'BellSoft', 'Amazon Corretto', 'Zulu'];
   for (const drive of driveRoots) {
-    for (const vendor of vendorDirs) {
-      const vendorPath = drive + path.sep + 'Program Files' + path.sep + vendor;
-      try {
-        if (fs.existsSync(vendorPath)) {
-          const versions = fs.readdirSync(vendorPath)
-            .filter(f => f.startsWith('jdk-') || f.startsWith('jre-'))
-            .sort().reverse();
-          for (const v of versions) {
-            const jp = vendorPath + path.sep + v + path.sep + 'bin' + path.sep + 'java.exe';
-            if (fs.existsSync(jp)) return jp;
+    for (const prog of programDirs) {
+      for (const vendor of vendorDirs) {
+        const vendorPath = drive + path.sep + prog + path.sep + vendor;
+        try {
+          if (!fs.existsSync(vendorPath)) continue;
+          for (const v of fs.readdirSync(vendorPath)) {
+            if (!v.startsWith('jdk-') && !v.startsWith('jre-')) continue;
+            const jp = path.join(vendorPath, v, 'bin', 'java.exe');
+            add(jp, parseMajorVersion(v));
           }
-        }
-      } catch {}
+        } catch {}
+      }
     }
   }
 
-  // JAVA_HOME
+  // 4. JAVA_HOME / where
   const jh = process.env.JAVA_HOME;
-  if (jh) {
-    const jp = path.join(jh, 'bin', 'java.exe');
-    if (fs.existsSync(jp)) return jp;
-  }
-
-  // where java
+  if (jh) add(path.join(jh, 'bin', 'java.exe'), parseMajorVersion(path.basename(jh)));
   try {
-    const where = require('child_process').execSync('where java', { encoding: 'utf-8', timeout: 5000 }).trim();
-    if (where) return where.split('\n')[0].trim();
+    const { execSync } = require('child_process');
+    const where = execSync('where java', { encoding: 'utf-8', timeout: 5000 }).trim();
+    if (where) add(where.split('\n')[0].trim(), 0);
   } catch {}
 
-  return null;
+  return installs;
+}
+
+function findJavaForVersion(requiredVersion: number): string | null {
+  const installs = getAllJavaInstalls();
+  // Prefer exact or closest-above required version; fall back to highest available
+  const sorted = [...installs].sort((a, b) => {
+    const aOk = a.majorVersion >= requiredVersion ? 1 : 0;
+    const bOk = b.majorVersion >= requiredVersion ? 1 : 0;
+    if (aOk !== bOk) return bOk - aOk;
+    return b.majorVersion - a.majorVersion;
+  });
+  return sorted[0]?.path || null;
+}
+
+// ---- Auto-download required JRE from Adoptium ----
+async function downloadJRE(majorVersion: number, onProgress?: ProgressCallback): Promise<string> {
+  const jreDir = path.join(MC_DATA_DIR, 'jres', `java-${majorVersion}`);
+  const markerFile = path.join(jreDir, '.installed');
+
+  // Already downloaded?
+  if (fs.existsSync(markerFile)) {
+    const cached = fs.readFileSync(markerFile, 'utf-8').trim();
+    if (fs.existsSync(cached)) return cached;
+  }
+
+  onProgress?.(`Downloading Java ${majorVersion} runtime (required for this MC version)...`);
+
+  const url = `https://api.adoptium.net/v3/binary/latest/${majorVersion}/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk`;
+  const zipPath = path.join(jreDir, 'jre.zip');
+  fs.mkdirSync(jreDir, { recursive: true });
+  await downloadFile(url, zipPath, onProgress);
+
+  onProgress?.('Extracting Java runtime...');
+  const { execSync } = require('child_process');
+  execSync(`powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force"`, { timeout: 300000, stdio: 'ignore' });
+  fs.unlinkSync(zipPath);
+
+  // Find java.exe in extracted dir
+  let javaExe: string | null = null;
+  const findJavaExe = (dir: string, depth: number): string | null => {
+    if (depth > 4) return null;
+    try {
+      const jp = path.join(dir, 'bin', 'java.exe');
+      if (fs.existsSync(jp)) return jp;
+      for (const sub of fs.readdirSync(dir)) {
+        const full = path.join(dir, sub);
+        if (fs.statSync(full).isDirectory()) {
+          const r = findJavaExe(full, depth + 1);
+          if (r) return r;
+        }
+      }
+    } catch {}
+    return null;
+  };
+  javaExe = findJavaExe(jreDir, 0);
+
+  if (!javaExe) throw new Error(`Failed to extract Java ${majorVersion} runtime`);
+
+  fs.writeFileSync(markerFile, javaExe);
+  return javaExe;
 }
 
 // ---- Launch game ----
@@ -399,10 +491,17 @@ export async function launchGame(
   sendProgress('Preparing to launch...');
 
   const detail = await getVersionDetail(versionId);
+  const requiredJava = detail.javaVersion?.majorVersion || 17;
 
-  // Check Java version
-  const java = javaPath || findJavaForVersion(detail.javaVersion?.majorVersion || 17);
-  if (!java) throw new Error('Java not found. Please install Java 17+.');
+  // Find the right Java version — auto-download if missing
+  let java = javaPath;
+  if (!java) {
+    java = findJavaForVersion(requiredJava);
+    if (!java) {
+      sendProgress(`No Java ${requiredJava}+ found — downloading runtime...`);
+      java = await downloadJRE(requiredJava, sendProgress);
+    }
+  }
 
   // Generate offline UUID from username
   const { createHash } = await import('crypto');
