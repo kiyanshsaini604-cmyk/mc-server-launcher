@@ -411,14 +411,11 @@ function getAllJavaInstalls(): JavaInstall[] {
 
 function findJavaForVersion(requiredVersion: number): string | null {
   const installs = getAllJavaInstalls();
-  // Prefer exact or closest-above required version; fall back to highest available
-  const sorted = [...installs].sort((a, b) => {
-    const aOk = a.majorVersion >= requiredVersion ? 1 : 0;
-    const bOk = b.majorVersion >= requiredVersion ? 1 : 0;
-    if (aOk !== bOk) return bOk - aOk;
-    return b.majorVersion - a.majorVersion;
-  });
-  return sorted[0]?.path || null;
+  // ONLY accept installs that meet the requirement — never fall back to older Java
+  // (older JVMs crash on new MC's JVM flags). Caller downloads the right JRE if null.
+  const eligible = installs.filter(i => i.majorVersion >= requiredVersion);
+  eligible.sort((a, b) => a.majorVersion - b.majorVersion); // closest match first
+  return eligible[0]?.path || null;
 }
 
 // ---- Auto-download required JRE from Adoptium ----
