@@ -311,13 +311,14 @@ function registerIPC() {
     // Download server jar
     try {
       const jarPath = path.join(serverDir, 'server.jar');
-      const java = findJava();
+      const requiredJava = requiredJavaForMcVersion(config.version);
+      const java = await ensureJavaRuntime(requiredJava).catch(() => null);
       await downloadServerJar(
         config.modLoader,
         config.version,
         jarPath,
         serverDir,
-        java?.path || '',
+        java || '',
         mainWindow,
       );
 
@@ -352,8 +353,12 @@ function registerIPC() {
 
     if (!fs.existsSync(jarPath)) throw new Error('server.jar not found. Please reinstall.');
 
-    const java = findJava();
-    if (!java) throw new Error('Java not found. Please install Java 17+.');
+    // Pick the RIGHT Java version for this MC version (auto-downloads if missing)
+    const requiredJava = requiredJavaForMcVersion(config.version);
+    const javaExe = await ensureJavaRuntime(requiredJava, (msg) => {
+      mainWindow?.webContents.send('server:console', id, { timestamp: new Date().toISOString(), message: msg, level: 'info' });
+    }).catch(() => null);
+    if (!javaExe) throw new Error(`Java ${requiredJava}+ is required for MC ${config.version}. Could not find or download it.`);
 
     const args = [
       ...config.jvmArgs,
@@ -363,7 +368,7 @@ function registerIPC() {
       'nogui',
     ];
 
-    const child = spawn(java.path, args, {
+    const child = spawn(javaExe, args, {
       cwd: serverDir,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -863,7 +868,7 @@ function generateServerProperties(config: any, serverDir?: string): string {
 }
 
 // ---- Minecraft Client Launcher ----
-import { getClientVersions, downloadClient, launchGame, isGameRunning, killGame, getGameDataDir } from './mc-launcher';
+import { getClientVersions, downloadClient, launchGame, isGameRunning, killGame, getGameDataDir, requiredJavaForMcVersion, ensureJavaRuntime } from './mc-launcher';
 
 ipcMain.handle('mc:versions', async () => {
   return getClientVersions();

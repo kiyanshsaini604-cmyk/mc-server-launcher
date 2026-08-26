@@ -551,6 +551,28 @@ export async function launchGame(
   });
 }
 
+// ---- Server-side Java helpers ----
+export function requiredJavaForMcVersion(version: string): number {
+  const m = version.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+  if (!m) return 17;
+  const a = parseInt(m[1], 10), b = parseInt(m[2], 10), c = m[3] ? parseInt(m[3], 10) : 0;
+  if (a !== 1) return 25;              // 26.x style future versions
+  if (b > 20 || (b === 20 && c >= 5)) return 21; // 1.20.5+ → Java 21
+  if (b >= 18) return 17;              // 1.18+ → Java 17
+  if (b >= 17) return 16;              // 1.17 → Java 16+
+  return 8;
+}
+
+export function findBestJava(required: number): string | null {
+  return findJavaForVersion(required);
+}
+
+export async function ensureJavaRuntime(required: number, onProgress?: ProgressCallback): Promise<string> {
+  const found = findJavaForVersion(required);
+  if (found) return found;
+  return downloadJRE(required, onProgress);
+}
+
 export function isGameRunning(): boolean {
   return gameProcess !== null && !gameProcess.killed;
 }
