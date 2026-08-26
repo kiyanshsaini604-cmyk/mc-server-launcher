@@ -32,6 +32,10 @@ declare global {
       banPlayer: (id: string, uuid: string) => Promise<any>;
       pardonPlayer: (id: string, uuid: string) => Promise<any>;
       kickPlayer: (id: string, name: string) => Promise<any>;
+      opPlayer: (id: string, name: string) => Promise<any>;
+      deopPlayer: (id: string, name: string) => Promise<any>;
+      whitelistAdd: (id: string, name: string) => Promise<any>;
+      whitelistRemove: (id: string, name: string) => Promise<any>;
       openFolder: (id: string) => Promise<any>;
       checkPort: (port: number) => Promise<boolean>;
       minimizeWindow: () => void;

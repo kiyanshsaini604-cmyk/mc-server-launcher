@@ -35,7 +35,7 @@ export async function startBot(config: BotConfig, mainWindow: BrowserWindow | nu
       host: config.host,
       port: config.port,
       username: config.username || 'ServerBot',
-      version: config.version || false,
+      version: false, // Auto-detect version from server
       hideErrors: true,
     });
 

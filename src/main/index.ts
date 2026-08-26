@@ -620,6 +620,69 @@ function registerIPC() {
     return { success: true };
   });
 
+  ipcMain.handle('players:op', (_, id: string, name: string) => {
+    const proc = serverProcesses.get(id);
+    if (proc) proc.stdin?.write(`op ${name}\n`);
+    // Also add to ops.json directly
+    try {
+      const opsPath = path.join(getServerDir(id), 'ops.json');
+      const ops = fs.existsSync(opsPath) ? JSON.parse(fs.readFileSync(opsPath, 'utf-8')) : [];
+      if (!ops.find((o: any) => o.name === name)) {
+        ops.push({ name, level: 4, bypassesPlayerLimit: false });
+        fs.writeFileSync(opsPath, JSON.stringify(ops, null, 2));
+      }
+    } catch {}
+    return { success: true };
+  });
+
+  ipcMain.handle('players:deop', (_, id: string, name: string) => {
+    const proc = serverProcesses.get(id);
+    if (proc) proc.stdin?.write(`deop ${name}\n`);
+    try {
+      const opsPath = path.join(getServerDir(id), 'ops.json');
+      if (fs.existsSync(opsPath)) {
+        let ops = JSON.parse(fs.readFileSync(opsPath, 'utf-8'));
+        ops = ops.filter((o: any) => o.name !== name);
+        fs.writeFileSync(opsPath, JSON.stringify(ops, null, 2));
+      }
+    } catch {}
+    return { success: true };
+  });
+
+  ipcMain.handle('players:whitelist-add', (_, id: string, name: string) => {
+    const proc = serverProcesses.get(id);
+    if (proc) proc.stdin?.write(`whitelist add ${name}\n`);
+    try {
+      const wlPath = path.join(getServerDir(id), 'whitelist.json');
+      const wl = fs.existsSync(wlPath) ? JSON.parse(fs.readFileSync(wlPath, 'utf-8')) : [];
+      if (!wl.find((w: any) => w.name === name)) {
+        wl.push({ name, uuid: '' });
+        fs.writeFileSync(wlPath, JSON.stringify(wl, null, 2));
+      }
+    } catch {}
+    return { success: true };
+  });
+
+  ipcMain.handle('players:whitelist-remove', (_, id: string, name: string) => {
+    const proc = serverProcesses.get(id);
+    if (proc) proc.stdin?.write(`whitelist remove ${name}\n`);
+    try {
+      const wlPath = path.join(getServerDir(id), 'whitelist.json');
+      if (fs.existsSync(wlPath)) {
+        let wl = JSON.parse(fs.readFileSync(wlPath, 'utf-8'));
+        wl = wl.filter((w: any) => w.name !== name);
+        fs.writeFileSync(wlPath, JSON.stringify(wl, null, 2));
+      }
+    } catch {}
+    return { success: true };
+  });
+
+  ipcMain.handle('players:ban-add', (_, id: string, name: string) => {
+    const proc = serverProcesses.get(id);
+    if (proc) proc.stdin?.write(`ban ${name}\n`);
+    return { success: true };
+  });
+
   // System
   ipcMain.handle('system:openFolder', (_, id: string) => {
     shell.openPath(getServerDir(id));
@@ -929,10 +992,9 @@ ipcMain.handle('cloud:download', async (_, fsId: number, localPath: string) => {
 });
 ipcMain.handle('cloud:upload-backup', async (_, serverId: string) => {
   const serverDir = getServerDir(serverId);
-  const backupPath = path.join(serverDir, 'backup.zip');
-  if (!fs.existsSync(backupPath)) throw new Error('No backup found. Create a backup first.');
-  return uploadToCloud(backupPath, `/MC-Servers/${serverId}/backup.zip`, (loaded, total) => {
-    mainWindow?.webContents.send('cloud:progress', { loaded, total, percent: total > 0 ? Math.round((loaded / total) * 100) : 0 });
+  if (!fs.existsSync(serverDir)) throw new Error('Server directory not found.');
+  return uploadDirToCloud(serverDir, `/MC-Servers/${serverId}`, (msg, pct) => {
+    mainWindow?.webContents.send('cloud:progress', { message: msg, percent: pct });
   });
 });
 ipcMain.handle('cloud:upload-dir', async (_, serverId: string) => {

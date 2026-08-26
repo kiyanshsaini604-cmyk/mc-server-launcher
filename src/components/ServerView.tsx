@@ -758,14 +758,32 @@ function PlayersTab({ serverId, running }: { serverId: string; running: boolean 
                   <div className="text-[10px] text-white/30">UUID: {player.uuid}</div>
                 </div>
               </div>
-              {running && activeTab === 'banned' && (
-                <button
-                  onClick={() => window.electronAPI.pardonPlayer(serverId, player.uuid).then(() => window.electronAPI.listPlayers(serverId).then(setPlayers))}
-                  className="px-2 py-1 text-mc-accent hover:bg-mc-accent/10 rounded text-xs transition-colors"
-                >
-                  Pardon
-                </button>
-              )}
+              <div className="flex gap-1">
+                {running && activeTab === 'ops' && (
+                  <button
+                    onClick={() => window.electronAPI.deopPlayer(serverId, player.name).then(() => window.electronAPI.listPlayers(serverId).then(setPlayers))}
+                    className="px-2 py-1 text-mc-yellow hover:bg-mc-yellow/10 rounded text-xs transition-colors"
+                  >
+                    De-OP
+                  </button>
+                )}
+                {running && activeTab === 'whitelist' && (
+                  <button
+                    onClick={() => window.electronAPI.whitelistRemove(serverId, player.name).then(() => window.electronAPI.listPlayers(serverId).then(setPlayers))}
+                    className="px-2 py-1 text-mc-red hover:bg-mc-red/10 rounded text-xs transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+                {running && activeTab === 'banned' && (
+                  <button
+                    onClick={() => window.electronAPI.pardonPlayer(serverId, player.uuid).then(() => window.electronAPI.listPlayers(serverId).then(setPlayers))}
+                    className="px-2 py-1 text-mc-accent hover:bg-mc-accent/10 rounded text-xs transition-colors"
+                  >
+                    Pardon
+                  </button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -773,39 +791,69 @@ function PlayersTab({ serverId, running }: { serverId: string; running: boolean 
 
       {running && (
         <div className="mt-4 bg-mc-panel rounded-xl p-4 border border-white/5">
-          <p className="text-xs text-white/30 mb-2">Quick actions (server must be running)</p>
-          <div className="flex gap-2">
+          <p className="text-xs text-white/30 mb-2">Player management (server must be running)</p>
+          <div className="flex gap-2 mb-2">
             <input
               type="text"
-              placeholder="Player name or UUID"
+              placeholder="Enter player name"
               id="player-action-input"
               className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-mc-accent/50"
             />
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={async () => {
-                const input = document.getElementById('player-action-input') as HTMLInputElement;
-                const val = input?.value.trim();
-                if (val) {
-                  await window.electronAPI.kickPlayer(serverId, val);
-                  input.value = '';
-                }
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.opPlayer(serverId, val); window.electronAPI.listPlayers(serverId).then(setPlayers); }
               }}
-              className="px-3 py-2 bg-mc-yellow/20 text-mc-yellow hover:bg-mc-yellow/30 rounded-lg text-xs font-medium transition-colors"
+              className="px-3 py-2 bg-mc-accent/20 text-mc-accent hover:bg-mc-accent/30 rounded-lg text-xs font-medium transition-colors"
             >
-              Kick
+              ⚡ OP
             </button>
             <button
               onClick={async () => {
-                const input = document.getElementById('player-action-input') as HTMLInputElement;
-                const val = input?.value.trim();
-                if (val) {
-                  await window.electronAPI.banPlayer(serverId, val);
-                  input.value = '';
-                }
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.deopPlayer(serverId, val); window.electronAPI.listPlayers(serverId).then(setPlayers); }
+              }}
+              className="px-3 py-2 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors"
+            >
+              De-OP
+            </button>
+            <button
+              onClick={async () => {
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.whitelistAdd(serverId, val); window.electronAPI.listPlayers(serverId).then(setPlayers); }
+              }}
+              className="px-3 py-2 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
+            >
+              ✓ Whitelist
+            </button>
+            <button
+              onClick={async () => {
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.whitelistRemove(serverId, val); window.electronAPI.listPlayers(serverId).then(setPlayers); }
+              }}
+              className="px-3 py-2 bg-white/5 text-white/40 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors"
+            >
+              Remove WL
+            </button>
+            <button
+              onClick={async () => {
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.kickPlayer(serverId, val); }
+              }}
+              className="px-3 py-2 bg-mc-yellow/20 text-mc-yellow hover:bg-mc-yellow/30 rounded-lg text-xs font-medium transition-colors"
+            >
+              🚪 Kick
+            </button>
+            <button
+              onClick={async () => {
+                const val = (document.getElementById('player-action-input') as HTMLInputElement)?.value.trim();
+                if (val) { await window.electronAPI.banPlayer(serverId, val); window.electronAPI.listPlayers(serverId).then(setPlayers); }
               }}
               className="px-3 py-2 bg-mc-red/20 text-mc-red hover:bg-mc-red/30 rounded-lg text-xs font-medium transition-colors"
             >
-              Ban
+              🚫 Ban
             </button>
           </div>
         </div>

@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   banPlayer: (id: string, uuid: string) => ipcRenderer.invoke('players:ban', id, uuid),
   pardonPlayer: (id: string, uuid: string) => ipcRenderer.invoke('players:pardon', id, uuid),
   kickPlayer: (id: string, name: string) => ipcRenderer.invoke('players:kick', id, name),
+  opPlayer: (id: string, name: string) => ipcRenderer.invoke('players:op', id, name),
+  deopPlayer: (id: string, name: string) => ipcRenderer.invoke('players:deop', id, name),
+  whitelistAdd: (id: string, name: string) => ipcRenderer.invoke('players:whitelist-add', id, name),
+  whitelistRemove: (id: string, name: string) => ipcRenderer.invoke('players:whitelist-remove', id, name),
 
   // Defaults
   getDefaults: () => ipcRenderer.invoke('defaults:list'),
