@@ -330,11 +330,15 @@ function parseMajorVersion(dirName: string): number {
 
 // ---- Safe RAM detection ----
 export function getSafeRamLimits(): { min: string; max: string } {
-  const totalGB = Math.floor(os.totalmem() / 1073741824);
-  // Cap to 50% of total RAM, min 1G, max 8G, never exceed system
-  const safeMax = Math.min(8, Math.max(1, Math.floor(totalGB * 0.45)));
-  const safeMin = Math.min(safeMax, Math.max(1, Math.floor(safeMax * 0.5)));
-  return { min: `${safeMin}G`, max: `${safeMax}G` };
+  const freeMB = Math.floor(os.freemem() / 1048576);
+  const totalMB = Math.floor(os.totalmem() / 1048576);
+  // Use only 40% of FREE RAM for max, never more than system can handle
+  // Hard caps: min 512M, max 6G (but actually limited by free RAM)
+  const maxMB = Math.min(6144, Math.max(512, Math.floor(freeMB * 0.4)));
+  // Min = half of max, at least 256M
+  const minMB = Math.max(256, Math.floor(maxMB * 0.5));
+  const toGB = (mb: number) => mb >= 1024 ? `${Math.floor(mb / 1024)}G` : `${mb}M`;
+  return { min: toGB(minMB), max: toGB(maxMB) };
 }
 
 function getAllJavaInstalls(): JavaInstall[] {
@@ -533,9 +537,15 @@ export async function launchGame(
   const uuid = createHash('md5').update(`OfflinePlayer:${username}`).digest('hex');
   const formattedUuid = `${uuid.slice(0, 8)}-${uuid.slice(8, 12)}-${uuid.slice(12, 16)}-${uuid.slice(16, 20)}-${uuid.slice(20)}`;
 
+  // SAFETY: force-cap RAM based on actual free memory to prevent paging file crash
+  const safe = getSafeRamLimits();
+  const finalMin = ramMin || safe.min;
+  const finalMax = ramMax || safe.max;
+  sendProgress(`Memory: ${finalMin} - ${finalMax}`);
+
   const { jvmArgs, gameArgs } = buildArgs(detail, versionId, username, formattedUuid, 'offline', [
-    `-Xms${ramMin}`,
-    `-Xmx${ramMax}`,
+    `-Xms${finalMin}`,
+    `-Xmx${finalMax}`,
   ]);
 
   sendProgress('Launching Minecraft...', 100);

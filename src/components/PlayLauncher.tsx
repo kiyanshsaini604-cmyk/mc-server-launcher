@@ -18,8 +18,8 @@ export default function PlayLauncher() {
   const [error, setError] = useState('');
   const [consoleLog, setConsoleLog] = useState('');
   const [javaPath, setJavaPath] = useState('');
-  const [ramMin, setRamMin] = useState('1G');
-  const [ramMax, setRamMax] = useState('2G');
+  const [ramMin, setRamMin] = useState('256M');
+  const [ramMax, setRamMax] = useState('1G');
 
   // Load safe RAM limits on mount
   useEffect(() => {

@@ -363,8 +363,8 @@ function registerIPC() {
 
     // Cap RAM to safe limits (prevent "paging file too small" crash)
     const safe = getSafeRamLimits();
-    const ramMin = config.ram?.min || safe.min;
-    const ramMax = config.ram?.max || safe.max;
+    const ramMin = safe.min;
+    const ramMax = safe.max;
 
     const args = [
       ...config.jvmArgs,
@@ -390,6 +390,8 @@ function registerIPC() {
       consoleBuffers.set(id, buffer);
       mainWindow?.webContents.send('server:console', id, line);
     };
+
+    broadcast(`RAM: ${ramMin} - ${ramMax} (auto-capped)`);
 
     child.stdout?.on('data', (data) => {
       const lines = data.toString().split('\n').filter(Boolean);
@@ -893,14 +895,7 @@ ipcMain.handle('mc:safe-ram', () => {
 ipcMain.handle('mc:launch', async (_, versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => {
   // Auto-cap RAM to prevent paging file crashes
   const safe = getSafeRamLimits();
-  const finalMin = ramMin || safe.min;
-  let finalMax = ramMax || safe.max;
-  const totalGB = Math.floor(os.totalmem() / 1073741824);
-  const requestedMaxGB = parseInt(finalMax);
-  if (requestedMaxGB > Math.floor(totalGB * 0.5)) {
-    finalMax = `${Math.max(1, Math.floor(totalGB * 0.45))}G`;
-  }
-  await launchGame(versionId, username, javaPath, finalMin, finalMax, mainWindow);
+  await launchGame(versionId, username, javaPath, ramMin || safe.min, ramMax || safe.max, mainWindow);
   return { success: true };
 });
 
