@@ -323,9 +323,18 @@ function buildArgs(
 interface JavaInstall { path: string; majorVersion: number }
 
 function parseMajorVersion(dirName: string): number {
-  // jdk-21.0.12.101-hotspot -> 21, jdk-17 -> 17, jre-8u301 -> 8
-  const m = dirName.match(/(?:jdk|jre)-?(\d+)/i);
+  // jdk-21.0.12.101-hotspot -> 21, jdk-17 -> 17, jre-8u301 -> 8, java-25 -> 25
+  const m = dirName.match(/(?:jdk|jre|java)-?(\d+)/i);
   return m ? parseInt(m[1], 10) : 0;
+}
+
+// ---- Safe RAM detection ----
+export function getSafeRamLimits(): { min: string; max: string } {
+  const totalGB = Math.floor(os.totalmem() / 1073741824);
+  // Cap to 50% of total RAM, min 1G, max 8G, never exceed system
+  const safeMax = Math.min(8, Math.max(1, Math.floor(totalGB * 0.45)));
+  const safeMin = Math.min(safeMax, Math.max(1, Math.floor(safeMax * 0.5)));
+  return { min: `${safeMin}G`, max: `${safeMax}G` };
 }
 
 function getAllJavaInstalls(): JavaInstall[] {
@@ -342,13 +351,17 @@ function getAllJavaInstalls(): JavaInstall[] {
     if (fs.existsSync(jresDir)) {
       for (const dir of fs.readdirSync(jresDir)) {
         const major = parseMajorVersion(dir);
-        const jp = path.join(jresDir, dir, 'jdk-', 'bin', 'java.exe');
-        // Adoptium zips extract to a single root dir; find bin/java.exe recursively-ish
+        if (major === 0) continue; // skip unparseable dirs
         const root = path.join(jresDir, dir);
+        // Skip if not a directory (e.g. .installed marker file)
+        try { if (!fs.statSync(root).isDirectory()) continue; } catch { continue; }
         let found = false;
+        // Scan one level deep for bin/java.exe (Adoptium zips extract to a root dir)
         try {
           for (const sub of fs.readdirSync(root)) {
-            const jp2 = path.join(root, sub, 'bin', 'java.exe');
+            const subPath = path.join(root, sub);
+            try { if (!fs.statSync(subPath).isDirectory()) continue; } catch { continue; }
+            const jp2 = path.join(subPath, 'bin', 'java.exe');
             if (fs.existsSync(jp2)) { add(jp2, major); found = true; break; }
           }
         } catch {}
@@ -450,8 +463,9 @@ async function downloadJRE(majorVersion: number, onProgress?: ProgressCallback):
       ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force`],
       { timeout: 300000, stdio: 'ignore' });
   }
+  // Clean up zip regardless of extraction result
+  try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath); } catch {}
   if (tarResult.status !== 0) throw new Error(`Failed to extract Java runtime (exit ${tarResult.status})`);
-  fs.unlinkSync(zipPath);
 
   // Find java.exe in extracted dir
   let javaExe: string | null = null;
@@ -503,10 +517,12 @@ export async function launchGame(
   const requiredJava = detail.javaVersion?.majorVersion || 17;
 
   // Find the right Java version — auto-download if missing
-  let java = javaPath;
+  let java: string = javaPath || '';
   if (!java) {
-    java = findJavaForVersion(requiredJava);
-    if (!java) {
+    const found = findJavaForVersion(requiredJava);
+    if (found) {
+      java = found;
+    } else {
       sendProgress(`No Java ${requiredJava}+ found — downloading runtime...`);
       java = await downloadJRE(requiredJava, sendProgress);
     }

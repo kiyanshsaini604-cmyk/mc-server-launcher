@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Minecraft Client
   mcVersions: () => ipcRenderer.invoke('mc:versions'),
+  mcSafeRam: () => ipcRenderer.invoke('mc:safe-ram'),
   mcDownload: (versionId: string) => ipcRenderer.invoke('mc:download', versionId),
   mcLaunch: (versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => ipcRenderer.invoke('mc:launch', versionId, username, javaPath, ramMin, ramMax),
   mcStatus: () => ipcRenderer.invoke('mc:status'),

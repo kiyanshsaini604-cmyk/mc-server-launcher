@@ -16,10 +16,10 @@ const MOD_LOADERS: { value: ServerConfig['modLoader']; label: string; descriptio
 ];
 
 const PRESETS = {
-  'Small Server': { maxPlayers: 10, ram: '2G', viewDistance: 8 },
-  'Medium Server': { maxPlayers: 25, ram: '4G', viewDistance: 10 },
-  'Large Server': { maxPlayers: 50, ram: '8G', viewDistance: 12 },
-  'Performance': { maxPlayers: 100, ram: '12G', viewDistance: 16 },
+  'Small Server': { maxPlayers: 10, ram: '1G', viewDistance: 8 },
+  'Medium Server': { maxPlayers: 25, ram: '2G', viewDistance: 10 },
+  'Large Server': { maxPlayers: 50, ram: '4G', viewDistance: 12 },
+  'Performance': { maxPlayers: 100, ram: '6G', viewDistance: 16 },
 };
 
 function versionCompare(a: string, b: string): number {
@@ -48,7 +48,7 @@ export default function CreateServer({ onBack, onCreated }: CreateServerProps) {
     modLoader: 'paper' as ServerConfig['modLoader'],
     port: 25565,
     maxPlayers: 20,
-    ram: { min: '1G', max: '4G' },
+    ram: { min: '1G', max: '2G' },
     motd: 'Welcome to my Minecraft Server!',
     gamemode: 'survival' as const,
     difficulty: 'normal' as const,

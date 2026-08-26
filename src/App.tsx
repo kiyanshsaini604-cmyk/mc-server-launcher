@@ -49,6 +49,7 @@ declare global {
       removeDefault: (type: string, file: string) => Promise<any>;
       // Minecraft Client
       mcVersions: () => Promise<any[]>;
+      mcSafeRam: () => Promise<{ min: string; max: string }>;
       mcDownload: (versionId: string) => Promise<any>;
       mcLaunch: (versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => Promise<any>;
       mcStatus: () => Promise<{ running: boolean }>;

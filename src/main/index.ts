@@ -6,6 +6,7 @@ import { execSync, exec } from 'child_process';
 import * as os from 'os';
 import net from 'net';
 import { downloadServerJar, downloadFromModrinth, ModrinthPack } from './downloaders';
+import { getSafeRamLimits } from './mc-launcher';
 
 let mainWindow: BrowserWindow | null = null;
 const serverProcesses: Map<string, ChildProcess> = new Map();
@@ -161,7 +162,7 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
       const wr = spawnSync('C:\\Windows\\System32\\where.exe', ['java'], { encoding: 'utf-8', timeout: 5000 });
       const where = (wr.stdout || '').trim();
       if (where) {
-        possiblePaths.unshift(...where.split('\n').map(l => l.trim()).filter(Boolean));
+        possiblePaths.unshift(...where.split('\n').map((l: string) => l.trim()).filter(Boolean));
       }
     } catch {}
 
@@ -360,10 +361,15 @@ function registerIPC() {
     }).catch(() => null);
     if (!javaExe) throw new Error(`Java ${requiredJava}+ is required for MC ${config.version}. Could not find or download it.`);
 
+    // Cap RAM to safe limits (prevent "paging file too small" crash)
+    const safe = getSafeRamLimits();
+    const ramMin = config.ram?.min || safe.min;
+    const ramMax = config.ram?.max || safe.max;
+
     const args = [
       ...config.jvmArgs,
-      `-Xms${config.ram?.min || '1G'}`,
-      `-Xmx${config.ram?.max || '4G'}`,
+      `-Xms${ramMin}`,
+      `-Xmx${ramMax}`,
       '-jar', jarPath,
       'nogui',
     ];
@@ -880,8 +886,21 @@ ipcMain.handle('mc:download', async (_, versionId: string) => {
   });
 });
 
+ipcMain.handle('mc:safe-ram', () => {
+  return getSafeRamLimits();
+});
+
 ipcMain.handle('mc:launch', async (_, versionId: string, username: string, javaPath: string, ramMin: string, ramMax: string) => {
-  await launchGame(versionId, username, javaPath, ramMin, ramMax, mainWindow);
+  // Auto-cap RAM to prevent paging file crashes
+  const safe = getSafeRamLimits();
+  const finalMin = ramMin || safe.min;
+  let finalMax = ramMax || safe.max;
+  const totalGB = Math.floor(os.totalmem() / 1073741824);
+  const requestedMaxGB = parseInt(finalMax);
+  if (requestedMaxGB > Math.floor(totalGB * 0.5)) {
+    finalMax = `${Math.max(1, Math.floor(totalGB * 0.45))}G`;
+  }
+  await launchGame(versionId, username, javaPath, finalMin, finalMax, mainWindow);
   return { success: true };
 });
 

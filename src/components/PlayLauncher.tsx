@@ -18,8 +18,16 @@ export default function PlayLauncher() {
   const [error, setError] = useState('');
   const [consoleLog, setConsoleLog] = useState('');
   const [javaPath, setJavaPath] = useState('');
-  const [ramMin, setRamMin] = useState('2G');
-  const [ramMax, setRamMax] = useState('4G');
+  const [ramMin, setRamMin] = useState('1G');
+  const [ramMax, setRamMax] = useState('2G');
+
+  // Load safe RAM limits on mount
+  useEffect(() => {
+    window.electronAPI.mcSafeRam().then((limits: { min: string; max: string }) => {
+      setRamMin(limits.min);
+      setRamMax(limits.max);
+    }).catch(() => {});
+  }, []);
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<'all' | 'release' | 'snapshot'>('release');
   const consoleRef = useRef<HTMLDivElement>(null);
