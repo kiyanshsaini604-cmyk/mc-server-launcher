@@ -36,8 +36,11 @@ async function downloadFile(url: string, destPath: string, onProgress?: Progress
         onProgress(`Downloading... ${(downloaded / 1048576).toFixed(1)} MB / ${(totalBytes / 1048576).toFixed(1)} MB`, pct);
       }
     });
-    nodeStream.on('end', () => { writer.end(); resolve(); });
     nodeStream.on('error', (err: Error) => { writer.destroy(); reject(err); });
+    // Resolve on writer 'close' so the file is fully flushed to disk
+    writer.on('error', (err: Error) => reject(err));
+    writer.on('close', () => resolve());
+    nodeStream.on('end', () => writer.end());
   });
 }
 
@@ -440,10 +443,14 @@ async function downloadJRE(majorVersion: number, onProgress?: ProgressCallback):
 
   onProgress?.('Extracting Java runtime...');
   const { spawnSync } = require('child_process');
-  const psResult = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-    ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force`],
-    { timeout: 300000, stdio: 'ignore' });
-  if (psResult.status !== 0) throw new Error(`Failed to extract Java runtime (exit ${psResult.status})`);
+  // Primary: Windows built-in tar (fast, reliable). Fallback: PowerShell Expand-Archive
+  let tarResult = spawnSync('C:\\Windows\\System32\\tar.exe', ['-xf', zipPath, '-C', jreDir], { timeout: 300000, stdio: 'ignore' });
+  if (tarResult.status !== 0) {
+    tarResult = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force`],
+      { timeout: 300000, stdio: 'ignore' });
+  }
+  if (tarResult.status !== 0) throw new Error(`Failed to extract Java runtime (exit ${tarResult.status})`);
   fs.unlinkSync(zipPath);
 
   // Find java.exe in extracted dir
