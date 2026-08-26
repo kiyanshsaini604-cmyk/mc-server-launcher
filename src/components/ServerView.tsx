@@ -29,6 +29,7 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
     players: 0, maxPlayers: 20, memoryUsed: '0 MB', memoryMax: '4 GB', uptime: '0s', tps: '-',
   });
   const [deployedDefaults, setDeployedDefaults] = useState<string[]>([]);
+  const [botActive, setBotActive] = useState(false);
   const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
@@ -71,9 +72,13 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
         if (!status.running) startTimeRef.current = 0;
       }
     });
+    const cleanupBot = window.electronAPI.onBotStatus((data: any) => {
+      if (data.serverId === serverId) setBotActive(data.active);
+    });
     return () => {
       cleanupConsole();
       cleanupStatus();
+      cleanupBot();
     };
   }, [serverId]);
 
@@ -266,6 +271,60 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
             🗑
           </button>
         </div>
+      </div>
+
+      {/* 24/7 Mode & Cloud Sync Bar */}
+      <div className="flex items-center gap-3 mb-3">
+        {/* 24/7 Toggle */}
+        <button
+          onClick={async () => {
+            if (botActive) {
+              await window.electronAPI.botStop();
+              setBotActive(false);
+            } else {
+              if (!running) { alert('Start the server first!'); return; }
+              await window.electronAPI.botStart(serverId);
+              setBotActive(true);
+            }
+          }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            botActive
+              ? 'bg-green-500/20 border border-green-500/40 text-green-400'
+              : 'bg-white/5 border border-white/10 text-white/40 hover:text-white/60'
+          }`}
+        >
+          <div className={`w-2 h-2 rounded-full ${botActive ? 'bg-green-400 animate-pulse' : 'bg-white/20'}`} />
+          {botActive ? '🤖 24/7 ON' : '🤖 24/7 OFF'}
+        </button>
+
+        {/* Cloud Sync */}
+        <button
+          onClick={async () => {
+            try {
+              const status = await window.electronAPI.cloudStatus();
+              if (!status.configured) { alert('Connect TeraBox in Settings first!'); return; }
+              await window.electronAPI.cloudPush(serverId);
+              alert('☁️ Server synced to cloud!');
+            } catch (err: any) { alert('Sync failed: ' + err.message); }
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/40 hover:text-white/60 transition-all"
+        >
+          ☁️ Sync to Cloud
+        </button>
+
+        <button
+          onClick={async () => {
+            try {
+              const status = await window.electronAPI.cloudStatus();
+              if (!status.configured) { alert('Connect TeraBox in Settings first!'); return; }
+              await window.electronAPI.cloudPull(serverId);
+              alert('☁️ Server synced from cloud!');
+            } catch (err: any) { alert('Sync failed: ' + err.message); }
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/40 hover:text-white/60 transition-all"
+        >
+          ⬇️ Pull from Cloud
+        </button>
       </div>
 
       {/* Deployed Defaults Badge */}

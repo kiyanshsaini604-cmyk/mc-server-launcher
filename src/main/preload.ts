@@ -74,6 +74,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('cloud:progress', handler);
   },
 
+  // Cloud Sync
+  cloudServers: () => ipcRenderer.invoke('cloud:servers'),
+  cloudPull: (serverId: string) => ipcRenderer.invoke('cloud:pull', serverId),
+  cloudPush: (serverId: string) => ipcRenderer.invoke('cloud:push', serverId),
+
+  // 24/7 Bot
+  botStart: (serverId: string) => ipcRenderer.invoke('bot:start', serverId),
+  botStop: () => ipcRenderer.invoke('bot:stop'),
+  botStatus: () => ipcRenderer.invoke('bot:status'),
+  onBotStatus: (callback: (data: any) => void) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('bot:status', handler);
+    return () => ipcRenderer.removeListener('bot:status', handler);
+  },
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),

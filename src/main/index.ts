@@ -8,6 +8,8 @@ import net from 'net';
 import { downloadServerJar, downloadFromModrinth, ModrinthPack } from './downloaders';
 import { getSafeRamLimits } from './mc-launcher';
 import { isCloudConfigured, configureCloud, getCloudStatus, listCloudFiles, uploadToCloud, downloadFromCloud, uploadDirToCloud, deleteCloudFile } from './cloud-storage';
+import { getCloudServerIds, pullServerFromCloud, pushServerToCloud } from './cloud-sync';
+import { startBot, stopBot, isBotActive } from './server-bot';
 
 let mainWindow: BrowserWindow | null = null;
 const serverProcesses: Map<string, ChildProcess> = new Map();
@@ -940,6 +942,35 @@ ipcMain.handle('cloud:upload-dir', async (_, serverId: string) => {
   });
 });
 ipcMain.handle('cloud:delete', (_, remotePath: string) => deleteCloudFile(remotePath));
+
+// ---- Cloud Sync ----
+ipcMain.handle('cloud:servers', async () => getCloudServerIds());
+ipcMain.handle('cloud:pull', async (_, serverId: string) => {
+  const serverDir = getServerDir(serverId);
+  return pullServerFromCloud(serverId, serverDir, (msg, pct) => {
+    mainWindow?.webContents.send('cloud:progress', { message: msg, percent: pct });
+  });
+});
+ipcMain.handle('cloud:push', async (_, serverId: string) => {
+  const serverDir = getServerDir(serverId);
+  return pushServerToCloud(serverId, serverDir, (msg, pct) => {
+    mainWindow?.webContents.send('cloud:progress', { message: msg, percent: pct });
+  });
+});
+
+// ---- 24/7 Bot ----
+ipcMain.handle('bot:start', async (_, serverId: string) => {
+  const config = JSON.parse(fs.readFileSync(getServerConfigPath(serverId), 'utf-8'));
+  return startBot({
+    host: '127.0.0.1',
+    port: config.port || 25565,
+    username: 'ServerBot_24x7',
+    version: config.version || false,
+    serverId,
+  }, mainWindow);
+});
+ipcMain.handle('bot:stop', () => stopBot());
+ipcMain.handle('bot:status', () => ({ active: isBotActive() }));
 
 // ---- Window ----
 function createWindow() {

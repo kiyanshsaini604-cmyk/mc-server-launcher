@@ -70,6 +70,13 @@ declare global {
       cloudUploadDir: (serverId: string) => Promise<any>;
       cloudDelete: (remotePath: string) => Promise<any>;
       onCloudProgress: (callback: (data: any) => void) => (() => void);
+      cloudServers: () => Promise<string[]>;
+      cloudPull: (serverId: string) => Promise<any>;
+      cloudPush: (serverId: string) => Promise<any>;
+      botStart: (serverId: string) => Promise<any>;
+      botStop: () => Promise<any>;
+      botStatus: () => Promise<{ active: boolean }>;
+      onBotStatus: (callback: (data: any) => void) => (() => void);
     };
   }
 }
