@@ -61,6 +61,15 @@ declare global {
       onConsole: (callback: (id: string, line: any) => void) => (() => void);
       onStatus: (callback: (id: string, status: any) => void) => (() => void);
       onDownloadProgress: (callback: (message: string, percent?: number) => void) => (() => void);
+      cloudStatus: () => Promise<{ configured: boolean; ndus?: string }>;
+      cloudConfigure: (creds: any) => Promise<{ success: boolean }>;
+      cloudList: (dir: string) => Promise<any[]>;
+      cloudUpload: (localPath: string, remotePath: string) => Promise<any>;
+      cloudDownload: (fsId: number, localPath: string) => Promise<any>;
+      cloudUploadBackup: (serverId: string) => Promise<any>;
+      cloudUploadDir: (serverId: string) => Promise<any>;
+      cloudDelete: (remotePath: string) => Promise<any>;
+      onCloudProgress: (callback: (data: any) => void) => (() => void);
     };
   }
 }

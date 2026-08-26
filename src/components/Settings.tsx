@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import CloudStorage from './CloudStorage';
 
 interface ModrinthDefault {
   modrinthId: string;
@@ -291,6 +292,11 @@ export default function Settings() {
           Host Minecraft servers from your own laptop. Supports Vanilla, Paper, Spigot, Purpur,
           Forge, and Fabric. Default packs auto-downloaded from Modrinth for every MC version.
         </p>
+      </div>
+
+      {/* Cloud Storage */}
+      <div className="mt-4">
+        <CloudStorage />
       </div>
     </div>
   );

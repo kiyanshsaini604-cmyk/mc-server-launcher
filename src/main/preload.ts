@@ -59,6 +59,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcKill: () => ipcRenderer.invoke('mc:kill'),
   mcGameDir: () => ipcRenderer.invoke('mc:game-dir'),
 
+  // Cloud Storage
+  cloudStatus: () => ipcRenderer.invoke('cloud:status'),
+  cloudConfigure: (creds: any) => ipcRenderer.invoke('cloud:configure', creds),
+  cloudList: (dir: string) => ipcRenderer.invoke('cloud:list', dir),
+  cloudUpload: (localPath: string, remotePath: string) => ipcRenderer.invoke('cloud:upload', localPath, remotePath),
+  cloudDownload: (fsId: number, localPath: string) => ipcRenderer.invoke('cloud:download', fsId, localPath),
+  cloudUploadBackup: (serverId: string) => ipcRenderer.invoke('cloud:upload-backup', serverId),
+  cloudUploadDir: (serverId: string) => ipcRenderer.invoke('cloud:upload-dir', serverId),
+  cloudDelete: (remotePath: string) => ipcRenderer.invoke('cloud:delete', remotePath),
+  onCloudProgress: (callback: (data: any) => void) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('cloud:progress', handler);
+    return () => ipcRenderer.removeListener('cloud:progress', handler);
+  },
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),

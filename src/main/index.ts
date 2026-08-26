@@ -7,6 +7,7 @@ import * as os from 'os';
 import net from 'net';
 import { downloadServerJar, downloadFromModrinth, ModrinthPack } from './downloaders';
 import { getSafeRamLimits } from './mc-launcher';
+import { isCloudConfigured, configureCloud, getCloudStatus, listCloudFiles, uploadToCloud, downloadFromCloud, uploadDirToCloud, deleteCloudFile } from './cloud-storage';
 
 let mainWindow: BrowserWindow | null = null;
 const serverProcesses: Map<string, ChildProcess> = new Map();
@@ -911,6 +912,34 @@ ipcMain.handle('mc:kill', () => {
 ipcMain.handle('mc:game-dir', () => {
   return getGameDataDir();
 });
+
+// ---- Cloud Storage ----
+ipcMain.handle('cloud:status', () => getCloudStatus());
+ipcMain.handle('cloud:configure', (_, creds: any) => configureCloud(creds));
+ipcMain.handle('cloud:list', (_, dir: string) => listCloudFiles(dir));
+ipcMain.handle('cloud:upload', async (_, localPath: string, remotePath: string) => {
+  return uploadToCloud(localPath, remotePath, (loaded, total) => {
+    mainWindow?.webContents.send('cloud:progress', { loaded, total, percent: total > 0 ? Math.round((loaded / total) * 100) : 0 });
+  });
+});
+ipcMain.handle('cloud:download', async (_, fsId: number, localPath: string) => {
+  return downloadFromCloud(fsId, localPath);
+});
+ipcMain.handle('cloud:upload-backup', async (_, serverId: string) => {
+  const serverDir = getServerDir(serverId);
+  const backupPath = path.join(serverDir, 'backup.zip');
+  if (!fs.existsSync(backupPath)) throw new Error('No backup found. Create a backup first.');
+  return uploadToCloud(backupPath, `/MC-Servers/${serverId}/backup.zip`, (loaded, total) => {
+    mainWindow?.webContents.send('cloud:progress', { loaded, total, percent: total > 0 ? Math.round((loaded / total) * 100) : 0 });
+  });
+});
+ipcMain.handle('cloud:upload-dir', async (_, serverId: string) => {
+  const serverDir = getServerDir(serverId);
+  return uploadDirToCloud(serverDir, `/MC-Servers/${serverId}`, (msg, pct) => {
+    mainWindow?.webContents.send('cloud:progress', { message: msg, percent: pct });
+  });
+});
+ipcMain.handle('cloud:delete', (_, remotePath: string) => deleteCloudFile(remotePath));
 
 // ---- Window ----
 function createWindow() {

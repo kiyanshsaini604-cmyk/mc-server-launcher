@@ -166,6 +166,24 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
     }
   };
 
+  const handleCloudBackup = async () => {
+    try {
+      const cloudStatus = await window.electronAPI.cloudStatus();
+      if (!cloudStatus.configured) {
+        alert('Connect TeraBox in Settings → Cloud Storage first!');
+        return;
+      }
+      // First create local backup
+      const backup = await window.electronAPI.backupServer(serverId);
+      if (!backup?.success) { alert('Failed to create local backup'); return; }
+      // Upload to cloud
+      const result = await window.electronAPI.cloudUploadBackup(serverId);
+      if (result?.success) alert('☁️ Backup uploaded to TeraBox!');
+    } catch (err: any) {
+      alert('Cloud backup failed: ' + (err.message || err));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -219,6 +237,13 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
             title="Backup server"
           >
             💾
+          </button>
+          <button
+            onClick={handleCloudBackup}
+            className="px-3 py-2 bg-white/5 hover:bg-white/10 text-white/60 rounded-lg text-sm transition-colors"
+            title="Backup to cloud (TeraBox)"
+          >
+            ☁️
           </button>
           <button
             onClick={async () => {
