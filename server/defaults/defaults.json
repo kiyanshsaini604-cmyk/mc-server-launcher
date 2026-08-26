@@ -1,0 +1,73 @@
+{
+  "resourcePacks": [
+    {
+      "modrinthId": "50dA9Sha",
+      "slug": "fresh-animations",
+      "label": "Fresh Animations",
+      "description": "Overhauled mob animations — makes your game look like the trailers",
+      "downloads": 44000000,
+      "icon": "https://cdn.modrinth.com/data/50dA9Sha/3132c10e9e3c73fde9799720fd3da5561071708c_96.webp"
+    },
+    {
+      "modrinthId": "TAIMVZCL",
+      "slug": "fa-player-extension",
+      "label": "Fresh Animations: Player",
+      "description": "Player skin animations in Fresh Animations style",
+      "downloads": 3400000,
+      "icon": "https://cdn.modrinth.com/data/TAIMVZCL/b3918b1dcedad8987cac3715ec95d00aaadc3a49_96.webp"
+    },
+    {
+      "modrinthId": "YAVTU8mK",
+      "slug": "fresh-animations-extensions",
+      "label": "Fresh Animations: Extensions",
+      "description": "Official extension packs for Fresh Animations",
+      "downloads": 10000000,
+      "icon": "https://cdn.modrinth.com/data/YAVTU8mK/2e83da75469cdec6d4558023cba611443b105c9e_96.webp"
+    },
+    {
+      "modrinthId": "4X8K6PK4",
+      "slug": "hud-textures",
+      "label": "HUD-Refined",
+      "description": "Clean refined HUD elements — works on almost every MC version",
+      "downloads": 11000,
+      "icon": null
+    },
+    {
+      "modrinthId": "w0TnApzs",
+      "slug": "faithful-32x",
+      "label": "Faithful 32x",
+      "description": "Classic 32x32 Faithful textures — works from Beta 1.7 to latest",
+      "downloads": 4500000,
+      "icon": null
+    }
+  ],
+  "shaderPacks": [
+    {
+      "modrinthId": "R6NEzAwj",
+      "slug": "complementary-unbound",
+      "label": "Complementary Unbound",
+      "description": "High-quality shaders — 83 versions from 1.7.2 to latest. Requires Iris/OptiFine on client.",
+      "downloads": 41000000,
+      "icon": null
+    },
+    {
+      "modrinthId": "Q1vvjJYV",
+      "slug": "bsl-shaders",
+      "label": "BSL Shaders",
+      "description": "Beautiful shaders — works from 1.7.10 to latest. Requires Iris/OptiFine on client.",
+      "downloads": 27700000,
+      "icon": null
+    }
+  ],
+  "mods": [
+    {
+      "modrinthId": "P7dR8mSH",
+      "slug": "fabric-api",
+      "label": "Fabric API",
+      "description": "Essential Fabric modding API — required by most Fabric mods. Server-side safe.",
+      "downloads": 0,
+      "modLoader": ["fabric"],
+      "icon": null
+    }
+  ]
+}

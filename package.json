@@ -1,0 +1,113 @@
+{
+  "name": "mc-server-launcher",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Host Minecraft servers from your own laptop — supports Vanilla, Paper, Spigot, Purpur, Forge, and Fabric",
+  "main": "dist/main/index.js",
+  "author": "Ultron",
+  "license": "MIT",
+  "homepage": "https://github.com/kiyanshsaini604-cmyk/Ultron",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiyanshsaini604-cmyk/Ultron"
+  },
+  "scripts": {
+    "dev": "node dev.mjs",
+    "build:renderer": "./node_modules/.bin/vite build",
+    "build:main": "./node_modules/.bin/tsc -p tsconfig.main.json",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:all": "npm run build && electron-builder --win --mac --linux",
+    "start": "electron ."
+  },
+  "build": {
+    "appId": "com.ultron.mc-server-launcher",
+    "productName": "MC Server Launcher",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "server/defaults/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "server/defaults",
+        "to": "defaults",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "MC-Server-Launcher-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MC Server Launcher"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Game"
+    }
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "node-fetch": "^3.3.2",
+    "ps-list": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.4.33",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "wait-on": "^7.2.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "electron@28.1.0": true
+  }
+}
