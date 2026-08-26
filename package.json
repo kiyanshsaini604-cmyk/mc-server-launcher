@@ -1,7 +1,7 @@
 {
   "name": "mc-server-launcher",
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "description": "Host Minecraft servers from your own laptop — supports Vanilla, Paper, Spigot, Purpur, Forge, and Fabric",
   "main": "dist/main/index.js",
   "author": "Ultron",
