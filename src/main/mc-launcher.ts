@@ -362,8 +362,9 @@ function getAllJavaInstalls(): JavaInstall[] {
     const regKeys = ['HKLM\\SOFTWARE\\JavaSoft\\JDK', 'HKLM\\SOFTWARE\\Eclipse Adoptium\\JDK', 'HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment'];
     for (const key of regKeys) {
       try {
-        const { execSync } = require('child_process');
-        const output = execSync(`reg query "${key}" /s`, { encoding: 'utf-8', timeout: 5000 });
+        const { spawnSync } = require('child_process');
+        const r = spawnSync('C:\\Windows\\System32\\reg.exe', ['query', key, '/s'], { encoding: 'utf-8', timeout: 5000 });
+        const output = (r.stdout || '') + (r.stderr || '');
         const homeMatches = output.match(/JavaHome\s+REG_SZ\s+(.+)/gi) || [];
         for (const m of homeMatches) {
           const dir = m.split('REG_SZ')[1]?.trim();
@@ -401,8 +402,9 @@ function getAllJavaInstalls(): JavaInstall[] {
   const jh = process.env.JAVA_HOME;
   if (jh) add(path.join(jh, 'bin', 'java.exe'), parseMajorVersion(path.basename(jh)));
   try {
-    const { execSync } = require('child_process');
-    const where = execSync('where java', { encoding: 'utf-8', timeout: 5000 }).trim();
+    const { spawnSync } = require('child_process');
+    const wr = spawnSync('C:\\Windows\\System32\\where.exe', ['java'], { encoding: 'utf-8', timeout: 5000 });
+    const where = (wr.stdout || '').trim();
     if (where) add(where.split('\n')[0].trim(), 0);
   } catch {}
 
@@ -437,8 +439,11 @@ async function downloadJRE(majorVersion: number, onProgress?: ProgressCallback):
   await downloadFile(url, zipPath, onProgress);
 
   onProgress?.('Extracting Java runtime...');
-  const { execSync } = require('child_process');
-  execSync(`powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force"`, { timeout: 300000, stdio: 'ignore' });
+  const { spawnSync } = require('child_process');
+  const psResult = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+    ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${jreDir}' -Force`],
+    { timeout: 300000, stdio: 'ignore' });
+  if (psResult.status !== 0) throw new Error(`Failed to extract Java runtime (exit ${psResult.status})`);
   fs.unlinkSync(zipPath);
 
   // Find java.exe in extracted dir

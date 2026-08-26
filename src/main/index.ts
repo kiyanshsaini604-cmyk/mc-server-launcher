@@ -137,7 +137,9 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
       ];
       for (const key of regKeys) {
         try {
-          const output = execSync(`reg query "${key}" /s`, { encoding: 'utf-8', timeout: 5000 });
+          const { spawnSync } = require('child_process');
+          const r = spawnSync('C:\\Windows\\System32\\reg.exe', ['query', key, '/s'], { encoding: 'utf-8', timeout: 5000 });
+          const output = (r.stdout || '') + (r.stderr || '');
           const javaHomeMatch = output.match(/JavaHome\s+REG_SZ\s+(.+)/i) || output.match(/Path\s+REG_SZ\s+(.+)/i);
           if (javaHomeMatch) {
             const javaHome = javaHomeMatch[1].trim();
@@ -155,7 +157,9 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
 
     // 3. where java (PATH)
     try {
-      const where = execSync('where java', { encoding: 'utf-8', timeout: 5000 }).trim();
+      const { spawnSync } = require('child_process');
+      const wr = spawnSync('C:\\Windows\\System32\\where.exe', ['java'], { encoding: 'utf-8', timeout: 5000 });
+      const where = (wr.stdout || '').trim();
       if (where) {
         possiblePaths.unshift(...where.split('\n').map(l => l.trim()).filter(Boolean));
       }
@@ -630,11 +634,15 @@ function registerIPC() {
 
     // Simple backup: copy server dir contents to a temp dir then zip via tar
     try {
-      const { execSync: execCmd } = await import('child_process');
+      const { spawnSync } = await import('child_process');
       if (os.platform() === 'win32') {
-        execCmd(`powershell -Command "Compress-Archive -Path '${serverDir}\*' -DestinationPath '${result.filePath}' -Force"`, { timeout: 120000 });
+        const r = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+          ['-NoProfile', '-Command', `Compress-Archive -Path '${serverDir}\*' -DestinationPath '${result.filePath}' -Force`],
+          { timeout: 300000, stdio: 'ignore' });
+        if (r.status !== 0) throw new Error(`Backup failed (exit ${r.status})`);
       } else {
-        execCmd(`cd '${serverDir}' && zip -r '${result.filePath}' .`, { timeout: 120000 });
+        const r = spawnSync('zip', ['-r', result.filePath, '.'], { cwd: serverDir, timeout: 300000, stdio: 'ignore' });
+        if (r.status !== 0) throw new Error(`Backup failed (exit ${r.status})`);
       }
       return { success: true, path: result.filePath };
     } catch (err: any) {
@@ -657,11 +665,15 @@ function registerIPC() {
     fs.mkdirSync(serverDir, { recursive: true });
 
     try {
-      const { execSync: execCmd } = await import('child_process');
+      const { spawnSync } = await import('child_process');
       if (os.platform() === 'win32') {
-        execCmd(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${serverDir}' -Force"`, { timeout: 120000 });
+        const r = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+          ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${serverDir}' -Force`],
+          { timeout: 300000, stdio: 'ignore' });
+        if (r.status !== 0) throw new Error(`Restore failed (exit ${r.status})`);
       } else {
-        execCmd(`cd '${serverDir}' && unzip '${zipPath}'`, { timeout: 120000 });
+        const r = spawnSync('unzip', ['-o', zipPath, '-d', serverDir], { timeout: 300000, stdio: 'ignore' });
+        if (r.status !== 0) throw new Error(`Restore failed (exit ${r.status})`);
       }
 
       // Try to read existing server.json from the backup
