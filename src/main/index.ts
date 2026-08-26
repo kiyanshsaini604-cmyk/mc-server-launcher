@@ -501,7 +501,6 @@ function registerIPC() {
 
   // Versions
   ipcMain.handle('versions:fetch', async () => {
-    const { default: fetch } = await import('node-fetch');
     const res = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json');
     const manifest = await res.json() as any;
     return manifest.versions.map((v: any) => ({

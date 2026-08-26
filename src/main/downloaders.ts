@@ -2,20 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { BrowserWindow } from 'electron';
+import { Readable } from 'stream';
 
 type ProgressCallback = (message: string, percent?: number) => void;
 
 const USER_AGENT = 'MCServerLauncher/1.0.0 (https://github.com/kiyanshsaini604-cmyk/Ultron)';
 
 async function fetchJSON(url: string): Promise<any> {
-  const { default: fetch } = await import('node-fetch');
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
   return res.json();
 }
 
+
 async function downloadFile(url: string, destPath: string, onProgress?: ProgressCallback): Promise<void> {
-  const { default: fetch } = await import('node-fetch');
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${url}`);
 
@@ -24,7 +24,8 @@ async function downloadFile(url: string, destPath: string, onProgress?: Progress
   let downloaded = 0;
 
   return new Promise((resolve, reject) => {
-    res.body?.on('data', (chunk: Buffer) => {
+    const nodeStream = Readable.fromWeb(res.body as any);
+    nodeStream.on('data', (chunk: Buffer) => {
       downloaded += chunk.length;
       writer.write(chunk);
       if (onProgress && totalBytes > 0) {
@@ -32,11 +33,11 @@ async function downloadFile(url: string, destPath: string, onProgress?: Progress
         onProgress(`Downloading... ${formatSize(downloaded)} / ${formatSize(totalBytes)}`, pct);
       }
     });
-    res.body?.on('end', () => {
+    nodeStream.on('end', () => {
       writer.end();
       resolve();
     });
-    res.body?.on('error', (err: Error) => {
+    nodeStream.on('error', (err: Error) => {
       writer.destroy();
       reject(err);
     });
@@ -391,7 +392,6 @@ const MODRINTH_API = 'https://api.modrinth.com/v2';
 const MODRINTH_AGENT = 'MCServerLauncher/1.0.0 (https://github.com/kiyanshsaini604-cmyk/Ultron)';
 
 async function modrinthFetch(url: string): Promise<any> {
-  const { default: fetch } = await import('node-fetch');
   const res = await fetch(url, { headers: { 'User-Agent': MODRINTH_AGENT } });
   if (!res.ok) throw new Error(`Modrinth API error: HTTP ${res.status} for ${url}`);
   return res.json();
