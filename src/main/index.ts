@@ -128,37 +128,52 @@ function findJava(): { path: string; version: string; is64Bit: boolean } | null 
   const possiblePaths: string[] = [];
 
   if (platform === 'win32') {
+    // 1. JAVA_HOME
     const javaHome = process.env.JAVA_HOME;
     if (javaHome) {
       possiblePaths.push(path.join(javaHome, 'bin', 'java.exe'));
     }
-    // Check common install locations
-    const programFiles = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean);
-    for (const pf of programFiles) {
-      if (pf) {
-        const adoptium = path.join(pf, 'Eclipse Adoptium');
-        const temurin = path.join(pf, 'Eclipse Temurin');
-        const zulu = path.join(pf, 'Azul');
-        const oracle = path.join(pf, 'Java');
-        for (const dir of [adoptium, temurin, zulu, oracle]) {
-          if (fs.existsSync(dir)) {
-            try {
-              const versions = fs.readdirSync(dir).filter(f => f.startsWith('jdk-') || f.startsWith('jre-'));
-              for (const v of versions) {
-                possiblePaths.push(path.join(dir, v, 'bin', 'java.exe'));
-              }
-            } catch {}
-          }
-        }
-      }
-    }
-    // Also check PATH
+    // 2. PATH
     try {
       const where = execSync('where java 2>nul', { encoding: 'utf-8' }).trim();
       if (where) {
         possiblePaths.unshift(...where.split('\n').map(l => l.trim()).filter(Boolean));
       }
     } catch {}
+    // 3. Hardcoded common Windows locations (Electron apps may not see ProgramFiles)
+    const driveRoots = ['C:', 'D:', 'E:'];
+    const programDirs = ['Program Files', 'Program Files (x86)'];
+    const vendorDirs = ['Eclipse Adoptium', 'Eclipse Temurin', 'Azul', 'Java', 'Microsoft', 'BellSoft', 'Amazon Corretto', 'Zulu'];
+    for (const drive of driveRoots) {
+      for (const prog of programDirs) {
+        for (const vendor of vendorDirs) {
+          const vendorPath = path.join(drive + '/', prog, vendor);
+          try {
+            if (fs.existsSync(vendorPath)) {
+              const versions = fs.readdirSync(vendorPath).filter(f => f.startsWith('jdk-') || f.startsWith('jre-'));
+              for (const v of versions) {
+                possiblePaths.push(path.join(vendorPath, v, 'bin', 'java.exe'));
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+    // 4. Also try registry-based location from ProgramFiles env
+    const programFiles = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean);
+    for (const pf of programFiles) {
+      for (const vendor of vendorDirs) {
+        const vendorPath = path.join(pf, vendor);
+        try {
+          if (fs.existsSync(vendorPath)) {
+            const versions = fs.readdirSync(vendorPath).filter(f => f.startsWith('jdk-') || f.startsWith('jre-'));
+            for (const v of versions) {
+              possiblePaths.push(path.join(vendorPath, v, 'bin', 'java.exe'));
+            }
+          }
+        } catch {}
+      }
+    }
   } else {
     // macOS / Linux
     const home = os.homedir();
