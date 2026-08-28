@@ -1,8 +1,5 @@
 import { BrowserWindow } from 'electron';
-import { spawnSync } from 'child_process';
 
-let bot: any = null;
-let botInterval: NodeJS.Timeout | null = null;
 let keepAliveInterval: NodeJS.Timeout | null = null;
 let currentConfig: any = null;
 let currentMainWindow: BrowserWindow | null = null;
@@ -25,150 +22,88 @@ function sendLog(msg: string, level: 'info' | 'error' = 'info') {
   }
 }
 
-// Start the keep-alive bot
-export async function startBot(config: BotConfig, mainWindow: BrowserWindow | null): Promise<{ success: boolean }> {
-  if (bot || keepAliveInterval) {
+function sendCommand(serverId: string, command: string): boolean {
+  try {
+    const serverProcesses = (global as any).__serverProcesses;
+    if (!serverProcesses) return false;
+    const proc = serverProcesses.get(serverId);
+    if (!proc || !proc.stdin || proc.stdin.destroyed) return false;
+    proc.stdin.write(command + '\n');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Start the keep-alive bot — uses direct server console commands
+// Works with ANY Minecraft version (no mineflayer needed)
+export function startBot(config: BotConfig, mainWindow: BrowserWindow | null): { success: boolean } {
+  if (keepAliveInterval) {
     stopBot();
   }
 
   currentConfig = config;
   currentMainWindow = mainWindow;
 
-  sendLog(`Starting keep-alive bot on ${config.host}:${config.port}...`);
+  sendLog(`Starting 24/7 keep-alive bot on ${config.host}:${config.port}...`);
 
-  // Try mineflayer first (works for most versions)
-  try {
-    const mineflayer = (await import('mineflayer' as any)).default;
-
-    bot = mineflayer.createBot({
-      host: config.host,
-      port: config.port,
-      username: config.username || 'ServerBot',
-      version: false, // Auto-detect
-      hideErrors: true,
-      reconnect: true,
-    });
-
-    bot.on('spawn', () => {
-      sendLog('Bot joined the server! Server will stay alive 24/7.');
-      mainWindow?.webContents.send('bot:status', { active: true, serverId: config.serverId });
-    });
-
-    bot.on('error', (err: any) => {
-      // If mineflayer can't handle this version, fall back
-      if (err.message && (err.message.includes('unsupported') || err.message.includes('protocol') || err.message.includes('version'))) {
-        sendLog('mineflayer does not support this MC version — switching to keep-alive mode', 'error');
-        bot?.quit();
-        bot = null;
-        startKeepAliveFallback(config, mainWindow);
-        return;
-      }
-      sendLog(`Bot error: ${err.message}`, 'error');
-    });
-
-    bot.on('kicked', (reason: any) => {
-      sendLog(`Bot kicked: ${reason}`);
-      // Auto-reconnect handled by mineflayer
-    });
-
-    bot.on('end', () => {
-      if (bot) {
-        sendLog('Bot disconnected — reconnecting in 15s...');
-        bot = null;
-        setTimeout(() => {
-          if (currentConfig) startBot(currentConfig, currentMainWindow);
-        }, 15000);
-      } else {
-        mainWindow?.webContents.send('bot:status', { active: false, serverId: config.serverId });
-      }
-    });
-
-    // Keep alive: move every 5 minutes
-    botInterval = setInterval(() => {
-      if (bot && bot.entity) {
-        try {
-          bot.setControlState('forward', true);
-          setTimeout(() => {
-            if (bot) bot.setControlState('forward', false);
-          }, 200);
-        } catch {}
-      }
-    }, 300000);
-
-    return { success: true };
-
-  } catch (err: any) {
-    // mineflayer import failed — fall back to keep-alive mode
-    sendLog(`mineflayer unavailable (${err.message}) — using keep-alive mode`);
-    startKeepAliveFallback(config, mainWindow);
-    return { success: true };
+  // Test that server is running
+  const ok = sendCommand(config.serverId, 'list');
+  if (!ok) {
+    sendLog('Server is not running! Start the server first.', 'error');
+    return { success: false };
   }
-}
 
-// Fallback: keep server alive by periodically running console commands
-// This works with ANY MC version since it uses the server's stdin
-function startKeepAliveFallback(config: BotConfig, mainWindow: BrowserWindow | null) {
-  if (keepAliveInterval) clearInterval(keepAliveInterval);
+  let tick = 0;
 
-  let tickCount = 0;
-
+  // Keep alive every 60 seconds
   keepAliveInterval = setInterval(() => {
-    tickCount++;
+    tick++;
 
-    // Send a harmless command to keep the server busy
-    // /list shows player count — server can't shut down while processing
-    // /say broadcasts a message — keeps world ticking
-    try {
-      // Use Electron IPC to send command to running server
-      mainWindow?.webContents.send('server:keep-alive-ping', config.serverId);
-
-      // Every 5 ticks (~2.5 min), send a say command via process stdin
-      // We need to access the server process — send event to index.ts
-      const { app } = require('electron');
-      // Access server process via global reference (set in index.ts)
-      const serverProcesses = (global as any).__serverProcesses;
-      if (serverProcesses) {
-        const proc = serverProcesses.get(config.serverId);
-        if (proc && proc.stdin && !proc.stdin.destroyed) {
-          if (tickCount % 5 === 0) {
-            proc.stdin.write('say ⚡ Keep-alive ping\n');
-          }
-          if (tickCount % 10 === 0) {
-            proc.stdin.write('list\n');
-          }
-        } else {
-          // Server is not running — stop the keep-alive
-          sendLog('Server stopped — disabling keep-alive', 'error');
-          stopBot();
-        }
-      }
-    } catch (err: any) {
-      sendLog(`Keep-alive ping failed: ${err.message}`, 'error');
+    // Check if server is still running
+    const serverProcesses = (global as any).__serverProcesses;
+    const proc = serverProcesses?.get(config.serverId);
+    if (!proc || proc.killed) {
+      sendLog('Server process died — stopping keep-alive', 'error');
+      stopBot();
+      mainWindow?.webContents.send('bot:status', { active: false, serverId: config.serverId });
+      return;
     }
-  }, 30000); // Every 30 seconds
 
-  sendLog('Keep-alive mode active — server will stay running 24/7');
-  sendLog('Bot will periodically ping the server to prevent auto-shutdown');
+    // Send commands to keep server alive
+    if (tick % 1 === 0) {
+      // Every tick (60s): say command keeps world ticking
+      sendCommand(config.serverId, 'say ⚡');
+    }
+
+    if (tick % 5 === 0) {
+      // Every 5 minutes: list players
+      sendCommand(config.serverId, 'list');
+    }
+
+    if (tick % 10 === 0) {
+      // Every 10 minutes: save the world
+      sendCommand(config.serverId, 'save-all');
+    }
+  }, 60000); // Every 60 seconds
+
+  // Log immediately
+  sendLog('✅ 24/7 mode ACTIVATED — server will stay alive');
+  sendLog('Bot pings server every 60s to prevent shutdown');
   mainWindow?.webContents.send('bot:status', { active: true, serverId: config.serverId });
+
+  return { success: true };
 }
 
 // Stop the keep-alive bot
 export function stopBot(): { success: boolean } {
-  if (botInterval) {
-    clearInterval(botInterval);
-    botInterval = null;
-  }
-
   if (keepAliveInterval) {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
 
-  if (bot) {
-    try {
-      bot.quit();
-    } catch {}
-    bot = null;
+  if (currentConfig && currentMainWindow) {
+    sendLog('24/7 mode DEACTIVATED — bot stopped');
   }
 
   currentConfig = null;
@@ -177,8 +112,7 @@ export function stopBot(): { success: boolean } {
   return { success: true };
 }
 
-// Check if bot is running
+// Check if bot is active
 export function isBotActive(): boolean {
-  if (bot) return !bot._client?.ended;
   return keepAliveInterval !== null;
 }
