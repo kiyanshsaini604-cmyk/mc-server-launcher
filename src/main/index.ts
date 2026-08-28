@@ -13,6 +13,7 @@ import { startBot, stopBot, isBotActive } from './server-bot';
 
 let mainWindow: BrowserWindow | null = null;
 const serverProcesses: Map<string, ChildProcess> = new Map();
+(global as any).__serverProcesses = serverProcesses;
 const consoleBuffers: Map<string, string[]> = new Map();
 
 // Server data directory

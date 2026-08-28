@@ -178,12 +178,10 @@ export default function ServerView({ serverId, onBack, onRefresh }: ServerViewPr
         alert('Connect TeraBox in Settings → Cloud Storage first!');
         return;
       }
-      // First create local backup
-      const backup = await window.electronAPI.backupServer(serverId);
-      if (!backup?.success) { alert('Failed to create local backup'); return; }
-      // Upload to cloud
+      // Upload server directory directly to cloud (no local backup needed)
       const result = await window.electronAPI.cloudUploadBackup(serverId);
-      if (result?.success) alert('☁️ Backup uploaded to TeraBox!');
+      if (result?.success) alert('☁️ Server uploaded to TeraBox!');
+      else alert('Upload failed: ' + JSON.stringify(result));
     } catch (err: any) {
       alert('Cloud backup failed: ' + (err.message || err));
     }
